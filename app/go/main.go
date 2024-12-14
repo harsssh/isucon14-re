@@ -24,7 +24,7 @@ var db *sqlx.DB
 func main() {
 	mux := setup()
 
-	matchingInterval := 200 * time.Millisecond
+	matchingInterval := 100 * time.Millisecond
 	go matchingLoop(context.Background(), matchingInterval)
 
 	slog.Info("Listening on :8080")
