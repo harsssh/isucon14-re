@@ -57,6 +57,8 @@ func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cache.chairSessions.Set(ctx, accessToken, chairID)
+
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
 		Name:  "chair_session",
