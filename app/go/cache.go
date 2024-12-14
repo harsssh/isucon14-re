@@ -88,9 +88,8 @@ func NewAppCache(ctx context.Context) *AppCache {
 		}
 
 		c.activeRides.Set(ctx, chair.ID, count)
+		log.Println(count)
 	}
-
-	log.Println(c.activeRides)
 
 	return c
 }
