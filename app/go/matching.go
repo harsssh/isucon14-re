@@ -53,6 +53,7 @@ func createMatch(ctx context.Context, rideID string) {
 		}
 
 		matched = randomActiveChair
+		break
 	}
 
 	if matched == nil {
