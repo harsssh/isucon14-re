@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,8 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 	if err != nil {
 		return err
 	}
+
+	var once sync.Once
 
 	// 失敗したらとりあえずリトライ
 	// FIXME: 社内決済マイクロサービスのインフラに異常が発生していて、同時にたくさんリクエストすると変なことになる可能性あり
@@ -68,9 +71,13 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 					return err
 				}
 
-				rides, err := retrieveRidesOrderByCreatedAtAsc()
-				if err != nil {
-					return err
+				var rides []Ride
+				var retrieveErr error
+				once.Do(func() {
+					rides, retrieveErr = retrieveRidesOrderByCreatedAtAsc()
+				})
+				if retrieveErr != nil {
+					return retrieveErr
 				}
 
 				if len(rides) != len(payments) {
@@ -84,7 +91,7 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 		if err != nil {
 			if retry < 5 {
 				retry++
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			} else {
 				return err
