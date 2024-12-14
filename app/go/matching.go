@@ -21,6 +21,8 @@ func matchingLoop(ctx context.Context) {
 }
 
 func createMatch(ctx context.Context, rideID string) {
+	slog.Info("start matching", rideID)
+
 	matched := &Chair{}
 	empty := false
 	for i := 0; i < 10; i++ {
