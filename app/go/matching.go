@@ -5,59 +5,91 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"time"
 )
 
-func matchingLoop(ctx context.Context, interval time.Duration) {
+var matchingQueue = make(chan string, 100)
+
+func matchingLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			createMatch(ctx)
-			time.Sleep(interval)
+		case rideID := <-matchingQueue:
+			createMatch(ctx, rideID)
 		}
 	}
 }
 
-// このAPIをインスタンス内から一定間隔で叩かせることで、椅子とライドをマッチングさせる
-func createMatch(ctx context.Context) {
-	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
-	ride := &Ride{}
-	if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 1`); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			//slog.Info("未マッチのライドがありません")
-			return
-		}
+func initMatchingQueue() {
+	var rideIDs []string
+	if err := db.Select(&rideIDs, "SELECT id FROM rides WHERE chair_id IS NULL"); err != nil {
+		panic(err)
+	}
+	for _, rideID := range rideIDs {
+		matchingQueue <- rideID
+	}
+}
+
+func createMatch(ctx context.Context, rideID string) {
+	tx, err := db.BeginTxx(ctx, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	// 既にマッチ済みだったら何もしない
+	var isMatched bool
+	if err := tx.GetContext(ctx, &isMatched, "SELECT COUNT(*) > 0 FROM rides WHERE id = ? AND chair_id IS NOT NULL", rideID); err != nil {
 		slog.Error(err.Error())
 		return
 	}
 
-	matched := &Chair{}
-	empty := false
+	var matched *Chair
+	// 10回ランダムに引いてみる
 	for i := 0; i < 10; i++ {
-		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
+		//log.Println("try matching", rideID, i)
+		randomActiveChair := &Chair{}
+		if err := tx.GetContext(ctx, randomActiveChair, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				//slog.Info("空いている椅子がありません")
+				//slog.Info("no active chair", rideID)
+				// 再度キューに入れておく
+				matchingQueue <- rideID
 				return
 			}
 			slog.Error(err.Error())
+			return
 		}
 
-		if err := db.GetContext(ctx, &empty, "SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE", matched.ID); err != nil {
+		var isIdle bool
+		if err := tx.GetContext(ctx, &isIdle,
+			"SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE",
+			randomActiveChair.ID); err != nil {
 			slog.Error(err.Error())
 			return
 		}
-		if empty {
-			break
+		if !isIdle {
+			continue
 		}
+
+		//log.Println("matched", rideID)
+		matched = randomActiveChair
+		break
 	}
-	if !empty {
-		//slog.Info("空いている椅子がありません")
+
+	if matched == nil {
+		//log.Println("no matched", rideID)
+		// 後で引き直す
+		matchingQueue <- rideID
 		return
 	}
 
-	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, ride.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, rideID); err != nil {
+		slog.Error(err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
 		slog.Error(err.Error())
 		return
 	}
@@ -68,6 +100,4 @@ func createMatch(ctx context.Context) {
 		return
 	}
 	cache.activeRides.Set(ctx, matched.ID, activeRides.Value+1)
-
-	//slog.Info("マッチングが完了しました")
 }

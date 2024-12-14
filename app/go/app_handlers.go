@@ -432,6 +432,9 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ライドが作成されたので、マッチングキューに追加
+	matchingQueue <- rideID
+
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
 		RideID: rideID,
 		Fare:   fare,

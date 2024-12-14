@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"time"
 )
 
 var db *sqlx.DB
@@ -24,8 +23,7 @@ var db *sqlx.DB
 func main() {
 	mux := setup()
 
-	matchingInterval := 200 * time.Millisecond
-	go matchingLoop(context.Background(), matchingInterval)
+	go matchingLoop(context.Background())
 
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
@@ -145,6 +143,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cache = NewAppCache(ctx)
+	initMatchingQueue()
 
 	http.Get("http://localhost:9000/api/group/collect")
 
