@@ -26,8 +26,10 @@ func createMatch(ctx context.Context, rideID string) {
 	matched := &Chair{}
 	empty := false
 	for i := 0; i < 10; i++ {
+		slog.Info("try matching", i, rideID)
 		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
+				slog.Info("no active chair", rideID)
 				//slog.Info("空いている椅子がありません")
 				return
 			}
@@ -38,14 +40,20 @@ func createMatch(ctx context.Context, rideID string) {
 			slog.Error(err.Error())
 			return
 		}
+
+		slog.Info("count", rideID)
+
 		if empty {
 			break
 		}
 	}
 	if !empty {
+		slog.Info("!empty", rideID)
 		//slog.Info("空いている椅子がありません")
 		return
 	}
+
+	slog.Info("create match", rideID)
 
 	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, rideID); err != nil {
 		slog.Error(err.Error())
