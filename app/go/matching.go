@@ -26,7 +26,7 @@ func createMatch(ctx context.Context) {
 	ride := &Ride{}
 	if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 1`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			slog.Info("未マッチのライドがありません")
+			//slog.Info("未マッチのライドがありません")
 			return
 		}
 		slog.Error(err.Error())
@@ -38,7 +38,7 @@ func createMatch(ctx context.Context) {
 	for i := 0; i < 10; i++ {
 		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Info("空いている椅子がありません")
+				//slog.Info("空いている椅子がありません")
 				return
 			}
 			slog.Error(err.Error())
@@ -53,7 +53,7 @@ func createMatch(ctx context.Context) {
 		}
 	}
 	if !empty {
-		slog.Info("空いている椅子がありません")
+		//slog.Info("空いている椅子がありません")
 		return
 	}
 
@@ -69,5 +69,5 @@ func createMatch(ctx context.Context) {
 	}
 	cache.activeRides.Set(ctx, matched.ID, activeRides.Value+1)
 
-	slog.Info("マッチングが完了しました")
+	//slog.Info("マッチングが完了しました")
 }
