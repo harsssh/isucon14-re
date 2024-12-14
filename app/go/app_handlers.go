@@ -283,12 +283,12 @@ type executableGet interface {
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
-func getLatestRideStatus(ctx context.Context, tx executableGet, rideID string) (string, error) {
-	status := ""
-	if err := tx.GetContext(ctx, &status, `SELECT status FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, rideID); err != nil {
+func getLatestRideStatus(ctx context.Context, _ executableGet, rideID string) (string, error) {
+	maybe, err := cache.latestRideStatus.Get(ctx, rideID)
+	if err != nil {
 		return "", err
 	}
-	return status, nil
+	return maybe.Value, nil
 }
 
 func appPostRides(w http.ResponseWriter, r *http.Request) {
@@ -431,6 +431,8 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	cache.latestRideStatus.Set(ctx, rideID, "MATCHING")
 
 	writeJSON(w, http.StatusAccepted, &appPostRidesResponse{
 		RideID: rideID,
@@ -631,6 +633,8 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cache.activeRides.Set(ctx, ride.ChairID.String, activeRides.Value-1)
+
+	cache.latestRideStatus.Set(ctx, rideID, "COMPLETED")
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
 		CompletedAt: ride.UpdatedAt.UnixMilli(),
