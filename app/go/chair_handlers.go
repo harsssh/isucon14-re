@@ -171,17 +171,19 @@ func performPostCoordinate(ctx context.Context, data *PostCoordinateData) {
 			return
 		}
 	} else {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		maybeStatus, err := cache.latestRideStatus.Get(ctx, ride.ID)
 		if err != nil {
 			slog.Error(err.Error())
 			return
 		}
+		status := maybeStatus.Value
 		if status != "COMPLETED" && status != "CANCELED" {
 			if latitude == ride.PickupLatitude && longitude == ride.PickupLongitude && status == "ENROUTE" {
 				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
 					slog.Error(err.Error())
 					return
 				}
+				cache.latestRideStatus.Set(ctx, ride.ID, "PICKUP")
 			}
 
 			if latitude == ride.DestinationLatitude && longitude == ride.DestinationLongitude && status == "CARRYING" {
@@ -189,6 +191,7 @@ func performPostCoordinate(ctx context.Context, data *PostCoordinateData) {
 					slog.Error(err.Error())
 					return
 				}
+				cache.latestRideStatus.Set(ctx, ride.ID, "ARRIVED")
 			}
 		}
 	}
@@ -343,6 +346,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		cache.latestRideStatus.Set(ctx, ride.ID, "ENROUTE")
 	// After Picking up user
 	case "CARRYING":
 		status, err := getLatestRideStatus(ctx, tx, ride.ID)
@@ -358,6 +362,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		cache.latestRideStatus.Set(ctx, ride.ID, "CARRYING")
 	default:
 		writeError(w, http.StatusBadRequest, errors.New("invalid status"))
 	}

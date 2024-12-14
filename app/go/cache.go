@@ -19,7 +19,8 @@ type AppCache struct {
 	latestChairLocation Cache[string, *ChairLocation]
 	activeRides         Cache[string, int]
 	// access_token -> chair_id
-	chairSessions Cache[string, string]
+	chairSessions    Cache[string, string]
+	latestRideStatus Cache[string, string]
 }
 
 func NewAppCache(ctx context.Context) *AppCache {
@@ -29,6 +30,8 @@ func NewAppCache(ctx context.Context) *AppCache {
 		latestChairLocation: lo.Must1(NewInMemoryLRUCache[string, *ChairLocation](1000)),
 		activeRides:         lo.Must1(NewInMemoryLRUCache[string, int](1000)),
 		chairSessions:       lo.Must1(NewInMemoryLRUCache[string, string](1000)),
+		// ride が 1200 くらい?
+		latestRideStatus: lo.Must1(NewInMemoryLRUCache[string, string](2000)),
 	}
 
 	// chairTotalDistances の初期化
@@ -87,6 +90,16 @@ func NewAppCache(ctx context.Context) *AppCache {
 		}
 
 		c.activeRides.Set(ctx, chair.ID, count)
+	}
+
+	var rides []*Ride
+	db.Select(&rides, `SELECT * FROM rides`)
+	for _, ride := range rides {
+		var status string
+		if err := db.Get(&status, `SELECT status FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, ride.ID); err != nil {
+			panic(err)
+		}
+		c.latestRideStatus.Set(ctx, ride.ID, status)
 	}
 
 	return c
