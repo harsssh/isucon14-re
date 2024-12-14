@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/oklog/ulid/v2"
 	"net/http"
 	"time"
 )
@@ -27,6 +28,11 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 		return err
 	}
 
+	// Idempotency-Key を生成
+	key := ulid.Make().String()
+
+	var rideCount *int
+
 	// 失敗したらとりあえずリトライ
 	// FIXME: 社内決済マイクロサービスのインフラに異常が発生していて、同時にたくさんリクエストすると変なことになる可能性あり
 	retry := 0
@@ -38,12 +44,18 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 			}
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Idempotency-Key", key)
 
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
 			}
 			defer res.Body.Close()
+
+			if res.StatusCode == http.StatusConflict {
+				// 受理済み
+				return nil
+			}
 
 			if res.StatusCode != http.StatusNoContent {
 				// エラーが返ってきても成功している場合があるので、社内決済マイクロサービスに問い合わせ
@@ -68,13 +80,17 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 					return err
 				}
 
-				rides, err := retrieveRidesOrderByCreatedAtAsc()
-				if err != nil {
-					return err
+				if rideCount == nil {
+					rides, err := retrieveRidesOrderByCreatedAtAsc()
+					if err != nil {
+						return err
+					}
+					rideCount = new(int)
+					*rideCount = len(rides)
 				}
 
-				if len(rides) != len(payments) {
-					return fmt.Errorf("unexpected number of payments: %d != %d. %w", len(rides), len(payments), erroredUpstream)
+				if *rideCount != len(payments) {
+					return fmt.Errorf("unexpected number of payments: %d != %d. %w", *rideCount, len(payments), erroredUpstream)
 				}
 
 				return nil
