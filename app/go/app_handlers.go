@@ -573,8 +573,6 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cache.latestRideStatus.Set(ctx, rideID, "COMPLETED")
-
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, errors.New("ride not found"))
@@ -635,6 +633,8 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cache.activeRides.Set(ctx, ride.ChairID.String, activeRides.Value-1)
+
+	cache.latestRideStatus.Set(ctx, rideID, "COMPLETED")
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
 		CompletedAt: ride.UpdatedAt.UnixMilli(),
