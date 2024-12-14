@@ -92,9 +92,8 @@ func NewAppCache(ctx context.Context) *AppCache {
 
 		for _, ride := range rides {
 			// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
-			status := lo.Must1(getLatestRideStatus(ctx, db, ride.ID))
-
-			if status != "COMPLETED" {
+			latestStatus, _ := c.latestRideStatus.Get(ctx, ride.ID)
+			if latestStatus.Value != "COMPLETED" {
 				count++
 			}
 		}
