@@ -77,7 +77,7 @@ type postChairActivityRequest struct {
 
 func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chair := ctx.Value("chair").(*Chair)
+	chairID := ctx.Value("chair_id").(string)
 
 	req := &postChairActivityRequest{}
 	if err := bindJSON(r, req); err != nil {
@@ -85,7 +85,7 @@ func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := db.ExecContext(ctx, "UPDATE chairs SET is_active = ? WHERE id = ?", req.IsActive, chair.ID)
+	_, err := db.ExecContext(ctx, "UPDATE chairs SET is_active = ? WHERE id = ?", req.IsActive, chairID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -106,12 +106,12 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chair := ctx.Value("chair").(*Chair)
+	chairID := ctx.Value("chair_id").(string)
 	recordedAt := time.Now()
 
 	c, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	go performPostCoordinate(c, &PostCoordinateData{
-		ChairID:    chair.ID,
+		ChairID:    chairID,
 		Coordinate: req,
 		RecordedAt: recordedAt,
 	})
@@ -217,7 +217,7 @@ type chairGetNotificationResponseData struct {
 
 func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chair := ctx.Value("chair").(*Chair)
+	chairID := ctx.Value("chair_id").(string)
 
 	tx, err := db.Beginx()
 	if err != nil {
@@ -229,7 +229,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	yetSentRideStatus := RideStatus{}
 	status := ""
 
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
+	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chairID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusOK, &chairGetNotificationResponse{
 				RetryAfterMs: 500,
@@ -304,7 +304,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rideID := r.PathValue("ride_id")
 
-	chair := ctx.Value("chair").(*Chair)
+	chairID := ctx.Value("chair_id").(string)
 
 	req := &postChairRidesRideIDStatusRequest{}
 	if err := bindJSON(r, req); err != nil {
@@ -329,7 +329,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if ride.ChairID.String != chair.ID {
+	if ride.ChairID.String != chairID {
 		writeError(w, http.StatusBadRequest, errors.New("not assigned to this ride"))
 		return
 	}
