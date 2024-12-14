@@ -22,10 +22,11 @@ import (
 var db *sqlx.DB
 
 func main() {
+	mux := setup()
+
 	matchingInterval := 200 * time.Millisecond
 	go matchingLoop(context.Background(), matchingInterval)
 
-	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
