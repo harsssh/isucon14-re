@@ -34,6 +34,16 @@ func NewAppCache(ctx context.Context) *AppCache {
 		latestRideStatus: lo.Must1(NewInMemoryLRUCache[string, string](2000)),
 	}
 
+	var rides []*Ride
+	db.Select(&rides, `SELECT * FROM rides`)
+	for _, ride := range rides {
+		var status string
+		if err := db.Get(&status, `SELECT status FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, ride.ID); err != nil {
+			panic(err)
+		}
+		c.latestRideStatus.Set(ctx, ride.ID, status)
+	}
+
 	// chairTotalDistances の初期化
 	var totalDistances []*ChairTotalDistance
 	if err := db.Select(&totalDistances, `
@@ -90,16 +100,6 @@ func NewAppCache(ctx context.Context) *AppCache {
 		}
 
 		c.activeRides.Set(ctx, chair.ID, count)
-	}
-
-	var rides []*Ride
-	db.Select(&rides, `SELECT * FROM rides`)
-	for _, ride := range rides {
-		var status string
-		if err := db.Get(&status, `SELECT status FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, ride.ID); err != nil {
-			panic(err)
-		}
-		c.latestRideStatus.Set(ctx, ride.ID, status)
 	}
 
 	return c
