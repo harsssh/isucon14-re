@@ -5,7 +5,7 @@ version: "3"
 vars:
   # Frequently changed
   # TODO: UPDATE ME
-  SERVICES: mysql nginx isuride-matcher isuride-go
+  SERVICES: mysql nginx isuride-go
 
   # Rarely changed
   REPO_DIR:
@@ -25,9 +25,6 @@ tasks:
       - task: build
       - ./assets/distribute_config.sh
       - task: restart-all
-      # hostname が s2 だったら、isuride-matcher を stop する
-      - cmd: hostname | grep -q s2 && sudo systemctl stop isuride-matcher
-        ignore_error: true
       - task: reload-sysctl
 
   build:

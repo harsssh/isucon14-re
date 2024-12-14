@@ -4,5 +4,6 @@ ISUCON_DB_USER="isucon"
 ISUCON_DB_PASSWORD="isucon"
 ISUCON_DB_NAME="isuride"
 
-# マッチング間隔（秒）
-ISUCON_MATCHING_INTERVAL=0.5
+# マッチング間隔（秒)
+# DEPRECATED: isuride-matcher はもう使わない
+ISUCON_MATCHING_INTERVAL=0.3
