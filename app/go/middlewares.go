@@ -66,8 +66,11 @@ func chairAuthMiddleware(next http.Handler) http.Handler {
 		}
 		accessToken := c.Value
 		maybeChairID, _ := cache.chairSessions.Get(ctx, accessToken)
+		if !maybeChairID.Found {
+			writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
+			return
+		}
 
-		// 存在しないことは無いはず
 		ctx = context.WithValue(ctx, "chair_id", maybeChairID.Value)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
