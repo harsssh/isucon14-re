@@ -18,6 +18,8 @@ type AppCache struct {
 	chairTotalDistances Cache[string, *ChairTotalDistance]
 	latestChairLocation Cache[string, *ChairLocation]
 	activeRides         Cache[string, int]
+	// access_token -> chair_id
+	chairSessions Cache[string, string]
 }
 
 func NewAppCache(ctx context.Context) *AppCache {
@@ -26,6 +28,7 @@ func NewAppCache(ctx context.Context) *AppCache {
 		chairTotalDistances: lo.Must1(NewInMemoryLRUCache[string, *ChairTotalDistance](1000)),
 		latestChairLocation: lo.Must1(NewInMemoryLRUCache[string, *ChairLocation](1000)),
 		activeRides:         lo.Must1(NewInMemoryLRUCache[string, int](1000)),
+		chairSessions:       lo.Must1(NewInMemoryLRUCache[string, string](1000)),
 	}
 
 	// chairTotalDistances の初期化
@@ -47,7 +50,7 @@ func NewAppCache(ctx context.Context) *AppCache {
 		panic(err)
 	}
 	for _, totalDistance := range totalDistances {
-		_ = c.chairTotalDistances.Set(context.Background(), totalDistance.ChairID, totalDistance)
+		c.chairTotalDistances.Set(ctx, totalDistance.ChairID, totalDistance)
 	}
 
 	var chairLocations []*ChairLocation
@@ -60,13 +63,15 @@ func NewAppCache(ctx context.Context) *AppCache {
 		panic(err)
 	}
 	for _, chairLocation := range chairLocations {
-		_ = c.latestChairLocation.Set(context.Background(), chairLocation.ChairID, chairLocation)
+		c.latestChairLocation.Set(ctx, chairLocation.ChairID, chairLocation)
 	}
 
-	var chairs []Chair
+	var chairs []*Chair
 	db.Select(&chairs, `SELECT * FROM chairs`)
 
 	for _, chair := range chairs {
+		c.chairSessions.Set(ctx, chair.AccessToken, chair.ID)
+
 		var rides []*Ride
 		count := 0
 
