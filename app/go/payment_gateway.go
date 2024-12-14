@@ -29,6 +29,8 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 	}
 
 	var once sync.Once
+	var rides []Ride
+	var retrieveErr error
 
 	// 失敗したらとりあえずリトライ
 	// FIXME: 社内決済マイクロサービスのインフラに異常が発生していて、同時にたくさんリクエストすると変なことになる可能性あり
@@ -71,8 +73,6 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 					return err
 				}
 
-				var rides []Ride
-				var retrieveErr error
 				once.Do(func() {
 					rides, retrieveErr = retrieveRidesOrderByCreatedAtAsc()
 				})
