@@ -21,8 +21,6 @@ import (
 var db *sqlx.DB
 
 func main() {
-	go postCoordinateJobWorker()
-
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
@@ -72,7 +70,7 @@ func setup() http.Handler {
 	db.SetMaxIdleConns(100)
 
 	mux := chi.NewRouter()
-	mux.Use(middleware.Logger)
+	//mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 	mux.HandleFunc("POST /api/initialize", postInitialize)
 
