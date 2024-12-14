@@ -52,7 +52,7 @@ func createMatch(ctx context.Context) {
 			break
 		}
 	}
-	if !empty {
+	if !empty || matched == nil {
 		//slog.Info("空いている椅子がありません")
 		return
 	}
