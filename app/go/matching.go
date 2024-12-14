@@ -38,6 +38,13 @@ func createMatch(ctx context.Context, rideID string) {
 	}
 	defer tx.Rollback()
 
+	// 既にマッチ済みだったら何もしない
+	var isMatched bool
+	if err := tx.GetContext(ctx, &isMatched, "SELECT COUNT(*) > 0 FROM rides WHERE id = ? AND chair_id IS NOT NULL", rideID); err != nil {
+		slog.Error(err.Error())
+		return
+	}
+
 	var matched *Chair
 	// 10回ランダムに引いてみる
 	for i := 0; i < 10; i++ {
