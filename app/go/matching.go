@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"log/slog"
 )
 
@@ -35,11 +34,11 @@ func createMatch(ctx context.Context, rideID string) {
 	var matched *Chair
 	// 10回ランダムに引いてみる
 	for i := 0; i < 10; i++ {
-		log.Println("try matching", rideID, i)
+		//log.Println("try matching", rideID, i)
 		randomActiveChair := &Chair{}
 		if err := db.GetContext(ctx, randomActiveChair, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Info("no active chair", rideID)
+				//slog.Info("no active chair", rideID)
 				// 再度キューに入れておく
 				matchingQueue <- rideID
 				return
@@ -48,22 +47,22 @@ func createMatch(ctx context.Context, rideID string) {
 			return
 		}
 
-		log.Println("randomActiveChair found", rideID)
+		//log.Println("randomActiveChair found", rideID)
 
 		maybeActiveRides, _ := cache.activeRides.Get(ctx, randomActiveChair.ID)
 		if maybeActiveRides.Value != 0 {
-			log.Println("maybeActiveRides.Value != 0", rideID)
+			//log.Println("maybeActiveRides.Value != 0", rideID)
 			// COMPLETED でないものはマッチング対象外
 			continue
 		}
 
-		log.Println("matched", rideID)
+		//log.Println("matched", rideID)
 		matched = randomActiveChair
 		break
 	}
 
 	if matched == nil {
-		log.Println("no matched", rideID)
+		//log.Println("no matched", rideID)
 		// 後で引き直す
 		matchingQueue <- rideID
 		return

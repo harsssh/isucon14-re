@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/samber/lo"
+	"log"
 )
 
 var cache *AppCache = nil
@@ -88,6 +89,8 @@ func NewAppCache(ctx context.Context) *AppCache {
 
 		c.activeRides.Set(ctx, chair.ID, count)
 	}
+
+	log.Println(c.activeRides)
 
 	return c
 }
