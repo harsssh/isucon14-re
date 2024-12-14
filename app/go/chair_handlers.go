@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/oklog/ulid/v2"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -107,19 +109,92 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	chair := ctx.Value("chair").(*Chair)
 	recordedAt := time.Now()
 
-	// job をキューイング
-	postCoordinateJobChan <- &PostCoordinateJobData{
-		Chair: chair,
-		ChairLocationCoordinate: &Coordinate{
-			Latitude:  req.Latitude,
-			Longitude: req.Longitude,
-		},
+	c, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	go performPostCoordinate(c, &PostCoordinateData{
+		ChairID:    chair.ID,
+		Coordinate: req,
 		RecordedAt: recordedAt,
-	}
+	})
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
 		RecordedAt: recordedAt.UnixMilli(),
 	})
+}
+
+type PostCoordinateData struct {
+	ChairID    string
+	Coordinate *Coordinate
+	RecordedAt time.Time
+}
+
+func performPostCoordinate(ctx context.Context, data *PostCoordinateData) {
+	chairID := data.ChairID
+	latitude := data.Coordinate.Latitude
+	longitude := data.Coordinate.Longitude
+
+	tx, err := db.Beginx()
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	// キャッシュの更新のために取得
+	lastLocation, _ := cache.latestChairLocation.Get(ctx, chairID)
+
+	chairLocationID := ulid.Make().String()
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO chair_locations (id, chair_id, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?)`,
+		chairLocationID, chairID, latitude, longitude, data.RecordedAt,
+	); err != nil {
+		slog.Error(err.Error())
+		return
+	}
+
+	location := &ChairLocation{}
+	if err := tx.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
+		slog.Error(err.Error())
+		return
+	}
+
+	// tx の失敗は考えない
+	updateLatestLocationCache(ctx, location)
+	updateTotalDistanceCache(ctx, lastLocation, location)
+
+	ride := &Ride{}
+	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chairID); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error(err.Error())
+			return
+		}
+	} else {
+		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		if err != nil {
+			slog.Error(err.Error())
+			return
+		}
+		if status != "COMPLETED" && status != "CANCELED" {
+			if latitude == ride.PickupLatitude && longitude == ride.PickupLongitude && status == "ENROUTE" {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
+					slog.Error(err.Error())
+					return
+				}
+			}
+
+			if latitude == ride.DestinationLatitude && longitude == ride.DestinationLongitude && status == "CARRYING" {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED"); err != nil {
+					slog.Error(err.Error())
+					return
+				}
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.Error(err.Error())
+		return
+	}
 }
 
 type simpleUser struct {

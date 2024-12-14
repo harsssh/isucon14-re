@@ -21,8 +21,6 @@ import (
 var db *sqlx.DB
 
 func main() {
-	go postCoordinateJobWorker()
-
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
