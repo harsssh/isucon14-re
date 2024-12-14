@@ -20,6 +20,16 @@ func matchingLoop(ctx context.Context) {
 	}
 }
 
+func initMatchingQueue() {
+	var rideIDs []string
+	if err := db.Select(&rideIDs, "SELECT id FROM rides WHERE chair_id IS NULL"); err != nil {
+		panic(err)
+	}
+	for _, rideID := range rideIDs {
+		matchingQueue <- rideID
+	}
+}
+
 func createMatch(ctx context.Context, rideID string) {
 	slog.Info("start matching", rideID)
 
