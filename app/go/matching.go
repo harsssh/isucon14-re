@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"log/slog"
 )
 
@@ -16,7 +15,7 @@ func matchingLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case rideID := <-matchingQueue:
-			go createMatch(ctx, rideID)
+			createMatch(ctx, rideID)
 		}
 	}
 }
@@ -32,8 +31,6 @@ func initMatchingQueue() {
 }
 
 func createMatch(ctx context.Context, rideID string) {
-	log.Println(len(matchingQueue), "matchingQueue")
-
 	tx, err := db.BeginTxx(ctx, nil)
 	if err != nil {
 		slog.Error(err.Error())
