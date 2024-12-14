@@ -47,12 +47,14 @@ func createMatch(ctx context.Context, rideID string) {
 			return
 		}
 
-		//log.Println("randomActiveChair found", rideID)
-
-		maybeActiveRides, _ := cache.activeRides.Get(ctx, randomActiveChair.ID)
-		if maybeActiveRides.Value != 0 {
-			//log.Println("maybeActiveRides.Value != 0", rideID)
-			// COMPLETED でないものはマッチング対象外
+		var isIdle bool
+		if err := db.GetContext(ctx, &isIdle,
+			"SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE",
+			randomActiveChair.ID); err != nil {
+			slog.Error(err.Error())
+			return
+		}
+		if !isIdle {
 			continue
 		}
 
