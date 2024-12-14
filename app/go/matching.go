@@ -16,7 +16,7 @@ func matchingLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case rideID := <-matchingQueue:
-			createMatch(ctx, rideID)
+			go createMatch(ctx, rideID)
 		}
 	}
 }
