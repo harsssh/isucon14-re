@@ -31,7 +31,7 @@ func initMatchingQueue() {
 }
 
 func createMatch(ctx context.Context, rideID string) {
-	matched := &Chair{}
+	var matched *Chair
 	// 10回ランダムに引いてみる
 	for i := 0; i < 10; i++ {
 		randomActiveChair := &Chair{}
