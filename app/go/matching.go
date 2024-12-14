@@ -9,13 +9,15 @@ import (
 )
 
 func matchingLoop(ctx context.Context, interval time.Duration) {
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			createMatch(ctx)
-			time.Sleep(interval)
+		case <-tick.C:
+			go createMatch(ctx)
 		}
 	}
 }
